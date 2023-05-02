@@ -1,0 +1,46 @@
+name: Deploy Deckhouse Kubernetes Platform
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Docker
+        uses: docker/setup-docker@v2
+        with:
+          docker-version: '20.10.7'
+
+      - name: Install Deckhouse Kubernetes Platform
+        env:
+          DECKHOUSE_CONFIG: |
+            global:
+              kubernetesVersion: 1.21.1
+              registry: docker.io
+              registryUsername: ${{ secrets.REGISTRY_USERNAME }}
+              registryPassword: ${{ secrets.REGISTRY_PASSWORD }}
+              network:
+                podSubnet: 10.244.0.0/16
+                serviceSubnet: 10.245.0.0/16
+            certManager:
+              enabled: true
+              email: you@example.com
+        run: |
+          docker run --rm -it \
+            -e DECKHOUSE_CONFIG="$DECKHOUSE_CONFIG" \
+            quay.io/deckhouse/deckhouse:2.16.0 \
+            --debug install \
+            --cni calico \
+            --ingress traefik \
+            --node-labels="node-role.deckhouse.io/master=true"
+
+      - name: Verify Deckhouse Kubernetes Platform deployment
+        env:
+          KUBECONFIG: /tmp/kubeconfig.yaml
+        run: |
+          echo "$DECKHOUSE_KUBECONFIG" > /tmp/kubeconfig.yaml
+          kubectl get nodes
